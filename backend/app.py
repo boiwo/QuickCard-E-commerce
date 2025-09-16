@@ -1,171 +1,207 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Product, Order
+from flask import Flask, jsonify, request, session, render_template_string
+from flask_cors import CORS
+from models import db, User, Product, CartItem, Order, ContactMessage
+import os
 
 app = Flask(__name__)
+app.secret_key = "quickcart-secret"
 
-# ---------- CONFIG ----------
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quickcart.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'supersecretkey'
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_PATH = os.path.join(BASE_DIR, "quickcart.sqlite")
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + DB_PATH
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
-jwt = JWTManager(app)
+CORS(app)
 
-# ---------- USER ROUTES ----------
-@app.route('/api/users/register', methods=['POST'])
+
+@app.route("/")
+def index():
+    html = """
+    <h1>QuickCart Backend Endpoints</h1>
+    <ul>
+      <li>/api/users/register (POST)</li>
+      <li>/api/users/login (POST)</li>
+      <li>/api/products (GET, POST)</li>
+      <li>/api/products/&lt;id&gt; (GET, PUT, DELETE)</li>
+      <li>/api/cart (GET, POST)</li>
+      <li>/api/cart/&lt;id&gt; (PUT, DELETE)</li>
+      <li>/api/orders (GET, POST)</li>
+      <li>/api/contacts (GET, POST)</li>
+      <li>/api/health (GET)</li>
+    </ul>
+    """
+    return render_template_string(html)
+
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+# ------------------- USERS -------------------
+@app.route("/api/users/register", methods=["POST"])
 def register():
     data = request.json
-    if not data or not data.get('username') or not data.get('email') or not data.get('password'):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({"error": "Email already registered"}), 400
-
-    hashed_pw = generate_password_hash(data['password'])
-    new_user = User(username=data['username'], email=data['email'], password=hashed_pw)
-    db.session.add(new_user)
+    if not data.get("username") or not data.get("password"):
+        return jsonify({"error": "username and password required"}), 400
+    if User.query.filter_by(username=data["username"]).first():
+        return jsonify({"error": "user exists"}), 400
+    u = User(username=data["username"])
+    u.set_password(data["password"])
+    db.session.add(u)
     db.session.commit()
-    return jsonify({"message": "User registered successfully!"}), 201
+    return jsonify(u.to_dict()), 201
 
-@app.route('/api/users/login', methods=['POST'])
+
+@app.route("/api/users/login", methods=["POST"])
 def login():
     data = request.json
-    user = User.query.filter_by(email=data['email']).first()
-    if user and check_password_hash(user.password, data['password']):
-        token = create_access_token(identity=user.id)
-        return jsonify({"token": token})
-    return jsonify({"error": "Invalid credentials"}), 401
+    u = User.query.filter_by(username=data.get("username")).first()
+    if u and u.check_password(data.get("password")):
+        session["user_id"] = u.id
+        return jsonify({"message": "login ok", "user": u.to_dict()})
+    return jsonify({"error": "invalid credentials"}), 401
 
-# ---------- PRODUCT ROUTES ----------
-@app.route('/api/products', methods=['GET'])
+
+# ------------------- PRODUCTS -------------------
+@app.route("/api/products", methods=["GET"])
 def get_products():
-    products = Product.query.all()
-    return jsonify([{
-        "id": p.id,
-        "name": p.name,
-        "description": p.description,
-        "price": p.price,
-        "image": p.image
-    } for p in products])
+    return jsonify([p.to_dict() for p in Product.query.all()])
 
-@app.route('/api/products/<int:id>', methods=['GET'])
+
+@app.route("/api/products/<int:id>", methods=["GET"])
 def get_product(id):
-    p = Product.query.get_or_404(id)
-    return jsonify({
-        "id": p.id,
-        "name": p.name,
-        "description": p.description,
-        "price": p.price,
-        "image": p.image
-    })
+    return jsonify(Product.query.get_or_404(id).to_dict())
 
-@app.route('/api/products', methods=['POST'])
-@jwt_required()
+
+@app.route("/api/products", methods=["POST"])
 def add_product():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user.is_admin:
-        return jsonify({"error": "Admins only"}), 403
     data = request.json
-    new_product = Product(**data)
-    db.session.add(new_product)
+    if not data.get("name") or data.get("price") is None:
+        return jsonify({"error": "name and price required"}), 400
+    p = Product(
+        name=data["name"],
+        description=data.get("description", ""),
+        price=float(data["price"]),
+        stock=int(data.get("stock", 0)),
+    )
+    db.session.add(p)
     db.session.commit()
-    return jsonify({"message": "Product added!"}), 201
+    return jsonify(p.to_dict()), 201
 
-@app.route('/api/products/<int:id>', methods=['PUT'])
-@jwt_required()
+
+@app.route("/api/products/<int:id>", methods=["PUT"])
 def update_product(id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user.is_admin:
-        return jsonify({"error": "Admins only"}), 403
+    p = Product.query.get_or_404(id)
     data = request.json
-    product = Product.query.get_or_404(id)
-    product.name = data.get('name', product.name)
-    product.description = data.get('description', product.description)
-    product.price = data.get('price', product.price)
-    product.image = data.get('image', product.image)
+    for field in ["name", "description", "price", "stock"]:
+        if field in data:
+            setattr(p, field, data[field])
     db.session.commit()
-    return jsonify({"message": "Product updated!"})
+    return jsonify(p.to_dict())
 
-@app.route('/api/products/<int:id>', methods=['DELETE'])
-@jwt_required()
+
+@app.route("/api/products/<int:id>", methods=["DELETE"])
 def delete_product(id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user.is_admin:
-        return jsonify({"error": "Admins only"}), 403
-    product = Product.query.get_or_404(id)
-    db.session.delete(product)
+    p = Product.query.get_or_404(id)
+    db.session.delete(p)
     db.session.commit()
-    return jsonify({"message": "Product deleted!"})
+    return jsonify({"message": "deleted"})
 
-# ---------- ORDER ROUTES ----------
-@app.route('/api/orders', methods=['POST'])
-@jwt_required()
-def create_order():
-    user_id = get_jwt_identity()
+
+# ------------------- CART -------------------
+@app.route("/api/cart", methods=["GET"])
+def view_cart():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "login required"}), 401
+    items = CartItem.query.filter_by(user_id=user_id).all()
+    return jsonify(
+        [{"id": i.id, "product_id": i.product_id, "quantity": i.quantity} for i in items]
+    )
+
+
+@app.route("/api/cart", methods=["POST"])
+def add_cart():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "login required"}), 401
     data = request.json
-    if not data or not data.get('total'):
-        return jsonify({"error": "Missing order total"}), 400
-    new_order = Order(user_id=user_id, total=data['total'])
-    db.session.add(new_order)
+    c = CartItem(user_id=user_id, product_id=data["product_id"], quantity=data.get("quantity", 1))
+    db.session.add(c)
     db.session.commit()
-    return jsonify({"message": "Order placed!"}), 201
+    return jsonify({"message": "added to cart", "id": c.id}), 201
 
-@app.route('/api/orders', methods=['GET'])
-@jwt_required()
-def get_orders():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if user.is_admin:
-        orders = Order.query.all()
-    else:
-        orders = Order.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        "id": o.id,
-        "user_id": o.user_id,
-        "status": o.status,
-        "total": o.total,
-        "created_at": o.created_at
-    } for o in orders])
 
-@app.route('/api/orders/<int:id>', methods=['PUT'])
-@jwt_required()
-def update_order(id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user.is_admin:
-        return jsonify({"error": "Admins only"}), 403
-    order = Order.query.get_or_404(id)
-    order.status = request.json.get('status', order.status)
+@app.route("/api/cart/<int:id>", methods=["PUT"])
+def update_cart(id):
+    c = CartItem.query.get_or_404(id)
+    data = request.json
+    c.quantity = data.get("quantity", c.quantity)
     db.session.commit()
-    return jsonify({"message": "Order updated!"})
+    return jsonify({"message": "updated"})
 
-@app.route('/api/orders/<int:id>', methods=['DELETE'])
-@jwt_required()
-def delete_order(id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user.is_admin:
-        return jsonify({"error": "Admins only"}), 403
-    order = Order.query.get_or_404(id)
-    db.session.delete(order)
+
+@app.route("/api/cart/<int:id>", methods=["DELETE"])
+def delete_cart(id):
+    c = CartItem.query.get_or_404(id)
+    db.session.delete(c)
     db.session.commit()
-    return jsonify({"message": "Order deleted!"})
+    return jsonify({"message": "removed"})
 
-# ---------- HOME & HEALTH ROUTES ----------
-@app.route('/')
-def home():
-    return jsonify({"message": "QuickCart API is running 🚀"})
 
-@app.route('/api/health')
-def health():
-    return jsonify({"status": "OK"})
+# ------------------- ORDERS -------------------
+@app.route("/api/orders", methods=["GET"])
+def list_orders():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "login required"}), 401
+    orders = Order.query.filter_by(user_id=user_id).all()
+    return jsonify(
+        [{"id": o.id, "status": o.status, "created_at": o.created_at.isoformat()} for o in orders]
+    )
 
-# ---------- MAIN ----------
-if __name__ == '__main__':
-    app.run(debug=True)
+
+@app.route("/api/orders", methods=["POST"])
+def place_order():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "login required"}), 401
+    o = Order(user_id=user_id, status="pending")
+    db.session.add(o)
+    CartItem.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
+    return jsonify({"message": "order placed", "order_id": o.id}), 201
+
+
+# ------------------- CONTACTS -------------------
+@app.route("/api/contacts", methods=["GET"])
+def get_contacts():
+    msgs = ContactMessage.query.all()
+    return jsonify(
+        [{"id": m.id, "full_name": m.full_name, "email": m.email, "message": m.message} for m in msgs]
+    )
+
+
+@app.route("/api/contacts", methods=["POST"])
+def add_contact():
+    data = request.json
+    c = ContactMessage(
+        full_name=data["full_name"],
+        email=data["email"],
+        subject=data.get("subject", ""),
+        message=data["message"],
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"message": "contact saved", "id": c.id}), 201
+
+
+
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()  # Creates tables if they don't exist
+
+    port = int(os.environ.get("PORT", 5000))  # Use Render's dynamic port
+    app.run(host="0.0.0.0", port=port, debug=True)

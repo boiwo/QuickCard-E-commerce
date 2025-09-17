@@ -1,5 +1,7 @@
 // src/services/api.ts
-const API_BASE_URL = "https://quickcard-e-commerce-2.onrender.com";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export async function getProducts() {
   const response = await fetch(`${API_BASE_URL}/api/products`);

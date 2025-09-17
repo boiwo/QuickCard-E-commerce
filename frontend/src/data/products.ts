@@ -18,8 +18,8 @@ export const products: Product[] = [
     description: 'Apple AirPods Pro (2nd Gen) with MagSafe Case (USB-C) provide excellent sound, active noise cancellation, and a comfortable fit. The USB-C case ensures quick charging, and they pair seamlessly with Apple devices for an effortless audio experience.',
     rating: 4.5,
     reviews: 1248,
-    inStock: true,
-    featured: true
+    inStock: false,
+    featured: false
   },
   {
     id: '2',
@@ -37,8 +37,8 @@ export const products: Product[] = [
     description: 'Experience crystal-clear audio with premium noise-canceling headphones. Perfect for travel, work, and entertainment.',
     rating: 4.8,
     reviews: 2156,
-    inStock: true,
-    featured: true
+    inStock: false,
+    featured: false
   },
   {
     id: '3',
@@ -55,8 +55,8 @@ export const products: Product[] = [
     description: 'Shop the latest laptops for work, gaming, and more. Power in every pixel with cutting-edge performance.',
     rating: 4.9,
     reviews: 892,
-    inStock: true,
-    featured: true
+    inStock: false,
+    featured: false
   },
   {
     id: '4',
@@ -73,7 +73,7 @@ export const products: Product[] = [
     description: 'The ultimate smartphone experience with advanced camera system and premium features.',
     rating: 4.7,
     reviews: 1567,
-    inStock: true
+    inStock: false
   },
   {
     id: '5',
@@ -89,7 +89,7 @@ export const products: Product[] = [
     description: 'Professional tablet for creative work and productivity.',
     rating: 4.6,
     reviews: 743,
-    inStock: true
+    inStock: false
   },
   {
     id: '6',
@@ -105,6 +105,6 @@ export const products: Product[] = [
     description: 'Portable gaming console with vibrant OLED display.',
     rating: 4.4,
     reviews: 1823,
-    inStock: true
+    inStock: false
   }
 ];

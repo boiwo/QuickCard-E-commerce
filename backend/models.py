@@ -1,21 +1,18 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
-
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(128), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
 
-    def set_password(self, pw):
-        self.password_hash = generate_password_hash(pw)
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
 
-    def check_password(self, pw):
-        return check_password_hash(self.password_hash, pw)
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
         return {"id": self.id, "username": self.username}
@@ -23,11 +20,11 @@ class User(db.Model):
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(128), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text, default="")
-    price = db.Column(db.Float, nullable=False, default=0.0)
+    price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    image_url = db.Column(db.String(255), default="")  # ✅ NEW FIELD
 
     def to_dict(self):
         return {
@@ -36,6 +33,7 @@ class Product(db.Model):
             "description": self.description,
             "price": self.price,
             "stock": self.stock,
+            "image_url": self.image_url,
         }
 
 
@@ -49,14 +47,13 @@ class CartItem(db.Model):
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(32), default="pending")
+    status = db.Column(db.String(50), default="pending")
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
 class ContactMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(128), nullable=False)
-    email = db.Column(db.String(128), nullable=False)
-    subject = db.Column(db.String(256), default="")
-    message = db.Column(db.Text, default="")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    full_name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(120), nullable=False)
+    subject = db.Column(db.String(200), default="")
+    message = db.Column(db.Text, nullable=False)

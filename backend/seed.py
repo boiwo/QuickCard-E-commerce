@@ -1,44 +1,47 @@
 from app import app, db
 from models import Product, User, ContactMessage
+from faker import Faker
+import random
+
+fake = Faker()
 
 with app.app_context():
-    # Reset database (optional – uncomment if you want a clean start each time)
-    # db.drop_all()
+    # Reset database (fresh start each run)
+    db.drop_all()
     db.create_all()
 
-    # Seed sample products
-    if not Product.query.first():
-        p1 = Product(name="PlayStation 5", description="Next-gen console", price=499.99, stock=10)
-        p2 = Product(name="iPhone 15", description="Latest Apple smartphone", price=999.99, stock=20)
-        p3 = Product(name="Nike Shoes", description="Running shoes", price=120.00, stock=50)
+    # --- Seed dynamic products ---
+    for _ in range(5):  # create 5 random products
+        product = Product(
+            name=fake.word().capitalize() + " " + fake.word().capitalize(),
+            description=fake.sentence(),
+            price=round(random.uniform(10, 2000), 2),
+            stock=random.randint(1, 100),
+            image_url=f"https://picsum.photos/seed/{random.randint(1,1000)}/600/400"
+        )
+        db.session.add(product)
+    print("✅ Products seeded dynamically.")
 
-        db.session.add_all([p1, p2, p3])
-        print("✅ Products seeded.")
-
-    # Seed a sample user
-    if not User.query.first():
-        user = User(username="admin")
-        user.set_password("admin123")  # hashed automatically
+    # --- Seed dynamic users ---
+    for _ in range(3):  # create 3 random users
+        username = fake.user_name()
+        password = "password123"  # default for testing
+        user = User(username=username)
+        user.set_password(password)
         db.session.add(user)
-        print("✅ User seeded (username: admin, password: admin123).")
+    print("✅ Users seeded dynamically.")
 
-    # Seed sample contact messages
-    if not ContactMessage.query.first():
-        c1 = ContactMessage(
-            full_name="John Doe",
-            email="john@example.com",
-            subject="Order inquiry",
-            message="I need help with my order."
+    # --- Seed dynamic contact messages ---
+    for _ in range(3):  # create 3 random contact messages
+        contact = ContactMessage(
+            full_name=fake.name(),
+            email=fake.email(),
+            subject=fake.sentence(nb_words=4),
+            message=fake.text(max_nb_chars=200)
         )
-        c2 = ContactMessage(
-            full_name="Jane Smith",
-            email="jane@example.com",
-            subject="Product availability",
-            message="When will the PS5 be back in stock?"
-        )
-        db.session.add_all([c1, c2])
-        print("✅ Contact messages seeded.")
+        db.session.add(contact)
+    print("✅ Contact messages seeded dynamically.")
 
     db.session.commit()
-    print("🎉 Database seeding complete!")
+    print("🎉 Database seeding complete with dynamic data!")
 

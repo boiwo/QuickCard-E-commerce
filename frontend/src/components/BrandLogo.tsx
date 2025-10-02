@@ -1,11 +1,11 @@
 import React from 'react';
 
 interface BrandLogoProps {
-  brand: string;
+  brand?: string; // optional to avoid undefined error
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function BrandLogo({ brand, size = 'sm' }: BrandLogoProps) {
+export function BrandLogo({ brand = 'Unknown', size = 'sm' }: BrandLogoProps) {
   const sizeClasses = {
     sm: 'w-8 h-8',
     md: 'w-12 h-12',
@@ -13,7 +13,9 @@ export function BrandLogo({ brand, size = 'sm' }: BrandLogoProps) {
   };
 
   const getBrandLogo = (brandName: string) => {
-    switch (brandName.toLowerCase()) {
+    const name = brandName.toLowerCase(); // safe because default is 'Unknown'
+
+    switch (name) {
       case 'apple':
         return (
           <div className={`${sizeClasses[size]} bg-gray-900 rounded-lg flex items-center justify-center`}>
@@ -43,7 +45,7 @@ export function BrandLogo({ brand, size = 'sm' }: BrandLogoProps) {
       default:
         return (
           <div className={`${sizeClasses[size]} bg-gray-500 rounded-lg flex items-center justify-center`}>
-            <span className="text-white font-bold text-xs">{brand.charAt(0)}</span>
+            <span className="text-white font-bold text-xs">{brandName.charAt(0)}</span>
           </div>
         );
     }

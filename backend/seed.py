@@ -1,7 +1,7 @@
 from app import app, db
 from models import Product, User
 
-# Put all products in one list (easy to extend)
+
 default_products = [
     {
         "name": "MacBook Air",
@@ -55,7 +55,7 @@ default_users = [
 with app.app_context():
     db.create_all()
 
-    # Dynamic product seeding: update if exists, else insert
+    
     for p in default_products:
         product = Product.query.filter_by(name=p["name"]).first()
         if product:
